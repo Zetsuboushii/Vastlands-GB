@@ -22,12 +22,17 @@ else()
     set(CMAKE_DEPFILE_FLAGS_C "")
 endif()
 
-include_directories(${GBDK_HOME}/include)
+include_directories(
+        ${GBDK_HOME}/include
+        ${PROJECT_SOURCE_DIR}/include
+)
 
 file(GLOB SOURCES
         src/*.c
+        include/*.h
 )
 add_executable(kinoubi ${SOURCES})
+target_include_directories(kinoubi PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 add_custom_command(TARGET kinoubi
         POST_BUILD
@@ -38,5 +43,5 @@ add_custom_command(TARGET kinoubi
 
 add_custom_command(TARGET kinoubi
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/kinoubi.gb ${BOTTLE_C}
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/kinoubi.gb /home/zetsu/.var/app/com.usebottles.bottles/data/bottles/bottles/Touhou-Machine/drive_c
 )
