@@ -1,35 +1,24 @@
 #include <stdio.h>
 #include <gb/gb.h>
-#include "../include/player.h"
-#include "../include/input.h"
-#include "../include/sprite_data.h"
+#include <gb/cgb.h>
+#include <gb/metasprites.h>
+#include "../res/tiles.c"
+#include "player.h"
 
-Player player;
-
-void main() {
-    printf("Knecht");
-    // Sprite-Setup
-    SPRITES_8x8;
-    set_sprite_data(0, 1, spriteTiles); // Definiere ein einfaches Sprite
-
-    // Spieler initialisieren
-    init_player(&player, 0);
-
+void main()
+{
+    SHOW_BKG;
     SHOW_SPRITES;
+    DISPLAY_ON;
 
-    while (1) {
-        int8_t dx, dy;
+    set_bkg_data(0, 58, tileTiles);
+    set_bkg_tiles(0, 0, 20, 18, tileMap);
 
-        // Eingabe verarbeiten
-        process_input(&dx, &dy);
+    //set_sprite_data(0, player_TILE_COUNT, player_tiles);
+    //move_metasprite_ex(player_metasprites, 0, 0, 0, 80, 80);
 
-        // Spieler bewegen
-        move_player(&player, dx, dy);
-
-        // Sprite aktualisieren
-        update_player_sprite(&player);
-
-        // Kurze Pause zwischen den Frames
-        delay(100);
+    while (1)
+    {
+        wait_vbl_done();
     }
 }

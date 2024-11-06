@@ -40,8 +40,3 @@ add_custom_command(TARGET kinoubi
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Building GB ROM"
 )
-
-add_custom_command(TARGET kinoubi
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/kinoubi.gb /home/zetsu/.var/app/com.usebottles.bottles/data/bottles/bottles/Touhou-Machine/drive_c
-)
