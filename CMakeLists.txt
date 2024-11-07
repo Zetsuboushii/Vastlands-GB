@@ -11,6 +11,12 @@ if(DEFINED ENV{CLION_IDE})
     message(STATUS "Detected CLion environment. Using GCC/Clang for code insight.")
 
     set(CMAKE_C_COMPILER gcc)
+
+    file(GLOB SOURCES
+            src/*.c
+            include/*.h
+            res/*.c
+    )
 else()
     message(STATUS "Building with GBDK's lcc compiler.")
 
@@ -20,17 +26,19 @@ else()
     set(CMAKE_C_FLAGS_DEBUG "")
     set(CMAKE_C_FLAGS_RELEASE "")
     set(CMAKE_DEPFILE_FLAGS_C "")
+
+    file(GLOB SOURCES
+            src/*.c
+            include/*.h
+    )
 endif()
 
 include_directories(
         ${GBDK_HOME}/include
         ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/res
 )
 
-file(GLOB SOURCES
-        src/*.c
-        include/*.h
-)
 add_executable(kinoubi ${SOURCES})
 target_include_directories(kinoubi PUBLIC "${PROJECT_SOURCE_DIR}/include")
 

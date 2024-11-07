@@ -7,6 +7,7 @@
 #include <gb/metasprites.h>
 #include <gbdk/platform.h>
 #include <gbdk/metasprites.h>
+#include "../res/player.c"
 
 #define player_TILE_ORIGIN 0
 #define player_TILE_W 8
