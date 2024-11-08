@@ -4,7 +4,7 @@
 #include <gb/metasprites.h>
 #include <stdbool.h>
 #include "../res/tiles.c"
-#include "../include/player.h"
+#include "../res/player.h"
 
 #define MAP_WIDTH 20
 #define MAP_HEIGHT 18
