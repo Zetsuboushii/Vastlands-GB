@@ -21,7 +21,7 @@ INCBIN_EXTERN(titlescreen_attr)
 INCBIN_EXTERN(titlescreen_palette)
 
 const hicolor_data titlescreen_data = {
-    .tile_count      = 167u,
+    .tile_count      = 352u,
     .height_in_tiles = 18u,
     .p_tiles         = titlescreen_tiles,
     .p_map           = titlescreen_map,
