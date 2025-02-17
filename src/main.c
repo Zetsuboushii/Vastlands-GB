@@ -8,8 +8,8 @@
 
 #include "titlescreen.h"
 #include <player.h>
-#include <dungeon_map.h>
-#include <dungeon_tiles.h>
+#include <dungeon1.h>
+#include <dungeon.h>
 #include <gb/metasprites.h>
 
 #define LAST_TILE_INDEX 255u
@@ -74,8 +74,8 @@ void main(void) {
             if (KEY_IS_PRESSED(J_START)) {
                 hicolor_stop();
 
-                set_bkg_data(0, 79u, dungeon_tiles);
-                set_bkg_tiles(0, 0, 32u, 32u, dungeon_mapPLN0);
+                set_bkg_data(0, 79u, TileLabel);
+                set_bkg_tiles(0, 0, 32u, 32u, dungeon1);
                 set_sprite_data(0, 4, player_tiles);
                 move_metasprite_ex(player_metasprites[0], 0, 0, 0, player_x, player_y);
             }
