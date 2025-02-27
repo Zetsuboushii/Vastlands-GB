@@ -103,7 +103,7 @@ uint16_t nextPlayerX, nextPlayerY;
 metasprite_t const* playerMetasprite;
 
 bool WorldPositionIsSolid(uint16_t x, uint16_t y) {
-    BGB_BREAKPOINT;
+    EMU_printf("%u, %u", x, y);
 
     uint16_t column = x / 16;
 
