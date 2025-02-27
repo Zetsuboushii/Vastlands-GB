@@ -12,7 +12,6 @@
 #include <player.h>
 #include <bkg.h>
 #include <palettes.h>
-#include <stdio.h>
 #include <gbdk/emu_debug.h>
 
 #define LAST_TILE_INDEX 255u
@@ -27,13 +26,12 @@ uint8_t key_state, key_state_prev;
 
 #define TILEMAP_WIDTH (bkg_WIDTH >> 3)
 #define TILEMAP_HEIGHT (bkg_HEIGHT >> 3)
+#define TILE_SIZE 16
+#define NUM_VALID_TILES  1
 
-#define PLAYER_SPEED 30
+const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04};
 
-typedef struct {
-    int x;
-    int y;
-} Vector8;
+#define PLAYER_SPEED 10
 
 const hicolor_data* img_data;
 uint8_t img_bank;
@@ -70,121 +68,85 @@ void cancel_titlescreen() {
     is_title_shown = false;
 }
 
-
-const Vector8 directionsForTwoFrameObjects[7] = {
-    {0, 1}, // Down
-    {0, 0},
-    {0, -1}, // Up,
-    {0, 0},
-    {-1, 0}, // Left
-    {0, 0},
-    {1, 0}, // Right
-};
-
 uint8_t joypadCurrent = 0;
-uint8_t twoFrameCounter = 0;
-uint8_t twoFrameRealValue = 0;
-
-void UpdateTwoFrameCounter() {
-    twoFrameCounter += 3;
-    twoFrameRealValue = twoFrameCounter >> 4;
-
-    if (twoFrameRealValue >= 2) {
-        twoFrameRealValue = 0;
-        twoFrameCounter = 0;
-    }
-}
-
 
 uint8_t playerDirection = 0;
-uint16_t playerX, playerY;
-uint16_t nextPlayerX, nextPlayerY;
+uint8_t playerX, playerY;
+uint8_t nextPlayerX, nextPlayerY;
 
 metasprite_t const* playerMetasprite;
 
-bool WorldPositionIsSolid(uint16_t x, uint16_t y) {
-    EMU_printf("%u, %u", x, y);
+uint8_t get_tile_index(uint8_t x, uint8_t y) {
+    uint8_t tile_x = x / TILE_SIZE;
+    uint8_t tile_y = y / TILE_SIZE;
 
-    uint16_t column = x / 16;
+    const uint8_t tile_index = get_bkg_tile_xy(tile_x, tile_y);
 
-    if (column >= TILEMAP_WIDTH) return true;
-
-    uint16_t row = y / 16;
-
-    if (row >= TILEMAP_HEIGHT) return true;
-
-    uint16_t tilemapIndex = column + row * TILEMAP_WIDTH;
-
-    bool tileIsSolid = false;
-
-    uint8_t tilesetTile = bkg_map[tilemapIndex];
-
-    tileIsSolid = (tilesetTile != 0x04);
-
-
-    return tileIsSolid;
+    return tile_index;
 }
 
-void SetupPlayer() {
+bool is_valid_tile(uint8_t x, uint8_t y) {
+    for (uint8_t i = 0; i < NUM_VALID_TILES; i++) {
+        if (valid_tiles[i] == get_tile_index(x, y)) { return true; }
+        EMU_printf("%u", get_tile_index(x, y));
+    }
+
+    return false;
+}
+
+void setup_player() {
     set_sprite_data(0, player_TILE_COUNT, player_tiles);
 
-    playerX = 150 << 4;
-    playerY = 40 << 4;
+    playerX = 9 * TILE_SIZE;
+    playerY = 9 * TILE_SIZE;
 
     playerDirection = J_DOWN;
 
     playerMetasprite = player_metasprites[0];
 }
 
-uint8_t UpdatePlayer() {
+uint8_t update_player() {
     uint8_t playerLastDirection = playerDirection;
-    int8_t playerDirectionX = 0, playerDirectionY = 0;
     uint8_t playerMoving = false;
     nextPlayerX = playerX;
     nextPlayerY = playerY;
 
     if (joypadCurrent & J_LEFT) {
-        nextPlayerX -= 1;
+        nextPlayerX -= TILE_SIZE;
         playerDirection = J_LEFT;
-        playerDirectionX = -1;
         playerMoving = true;
     }
     if (joypadCurrent & J_RIGHT) {
-        nextPlayerX += 1;
+        nextPlayerX += TILE_SIZE;
         playerDirection = J_RIGHT;
-        playerDirectionX = 1;
         playerMoving = true;
     }
     if (joypadCurrent & J_UP) {
-        nextPlayerY -= 1;
+        nextPlayerY -= TILE_SIZE;
         playerDirection = J_UP;
-        playerDirectionY = -1;
         playerMoving = true;
     }
     if (joypadCurrent & J_DOWN) {
-        nextPlayerY += 1;
+        nextPlayerY += TILE_SIZE;
         playerDirection = J_DOWN;
-        playerDirectionY = 1;
         playerMoving = true;
     }
 
     if (playerMoving) {
         if (playerDirection != playerLastDirection) {
+            set_sprite_data(0, player_TILE_COUNT, player_tiles);
+
             switch (playerDirection) {
             case J_DOWN:
-                set_sprite_data(0, player_TILE_COUNT, player_tiles);
                 playerMetasprite = player_metasprites[0];
                 break;
             case J_UP:
-                set_sprite_data(0, player_TILE_COUNT, player_tiles);
                 playerMetasprite = player_metasprites[1];
                 break;
             case J_LEFT:
-                set_sprite_data(0, player_TILE_COUNT, player_tiles);
                 playerMetasprite = player_metasprites[2];
                 break;
             case J_RIGHT:
-                set_sprite_data(0, player_TILE_COUNT, player_tiles);
                 playerMetasprite = player_metasprites[3];
                 break;
             default:
@@ -192,27 +154,13 @@ uint8_t UpdatePlayer() {
             }
         }
 
-        if (playerDirectionX != 0) {
-            bool solid =
-                WorldPositionIsSolid(nextPlayerX + playerDirectionX * 8, playerY - 8) ||
-                WorldPositionIsSolid(nextPlayerX + playerDirectionX * 8, playerY) ||
-                WorldPositionIsSolid(nextPlayerX + playerDirectionX * 8, playerY + 8);
-            if (!solid) {
-                playerX += nextPlayerX;
-            }
-        }
-        if (playerDirectionY != 0) {
-            bool solid =
-                WorldPositionIsSolid(playerX + 8, nextPlayerY + playerDirectionY * 8) ||
-                WorldPositionIsSolid(playerX, nextPlayerY + playerDirectionY * 8) ||
-                WorldPositionIsSolid(playerX - 8, nextPlayerY + playerDirectionY * 8);
-            if (!solid) {
-                playerY += nextPlayerY;
-            }
+        if (is_valid_tile(nextPlayerX, nextPlayerY)) {
+            playerX = nextPlayerX;
+            playerY = nextPlayerY;
         }
     }
 
-    return move_metasprite(playerMetasprite, 0, 0, playerX >> 4, playerY >> 4);
+    return move_metasprite(playerMetasprite, 0, 0, playerX, playerY + 8);
 }
 
 
@@ -238,16 +186,14 @@ void main(void) {
         SHOW_SPRITES;
         SPRITES_8x16;
 
-        SetupPlayer();
+        setup_player();
 
         while (true) {
             joypadCurrent = joypad();
 
-            UpdateTwoFrameCounter();
-
             uint8_t lastSprite = 0;
 
-            lastSprite += UpdatePlayer();
+            lastSprite += update_player();
 
             hide_sprites_range(lastSprite, 40);
 
