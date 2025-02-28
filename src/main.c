@@ -79,16 +79,19 @@ metasprite_t const* playerMetasprite;
 uint8_t get_tile_index(uint8_t x, uint8_t y) {
     uint8_t tile_x = x / TILE_SIZE;
     uint8_t tile_y = y / TILE_SIZE;
+    EMU_printf("tile_x, tile_y: %u, %u\n", tile_x, tile_y);
 
-    const uint8_t tile_index = get_bkg_tile_xy(tile_x, tile_y);
+    uint8_t tile_index;
+    get_bkg_tiles(tile_x, tile_y, 1, 1, &tile_index);
 
     return tile_index;
 }
 
 bool is_valid_tile(uint8_t x, uint8_t y) {
+    EMU_printf("Original x, y: %u, %u\n", x, y);
     for (uint8_t i = 0; i < NUM_VALID_TILES; i++) {
         if (valid_tiles[i] == get_tile_index(x, y)) { return true; }
-        EMU_printf("%u", get_tile_index(x, y));
+        EMU_printf("get_tile_index: %u\n", get_tile_index(x, y));
     }
 
     return false;
