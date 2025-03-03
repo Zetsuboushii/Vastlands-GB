@@ -7,13 +7,13 @@
 #include <gb/metasprites.h>
 #include <gbdk/console.h>
 #include <gbdk/font.h>
-
 #include <gbc_hicolor.h>
 #include <titlescreen.h>
 #include <player.h>
 #include <bkg.h>
 #include <palettes.h>
 #include <stdio.h>
+
 
 /*
  *  MACROS, CONSTANTS AND DECLARATIONS
@@ -44,15 +44,19 @@ const uint8_t valid_tiles[NUM_VALID_TILES] = {
     0x37, 0x38
 };
 
-// Input
+// Input variables
 uint8_t key_state, key_state_prev;
 uint8_t joypad_current = 0;
 
-// Player
+// Player variables
 uint8_t player_direction = 0;
-uint8_t player_x, player_y;
+uint8_t player_x, player_y; // Current player positions in pixels
 metasprite_t const* playerMetasprite;
 
+// Camera variables
+uint16_t camera_x, camera_y, old_camera_x, old_camera_y; // Current and old camera positions in pixels
+uint8_t map_pos_x, map_pos_y, old_map_pos_x, old_map_pos_y; // Current and old map positions in tiles
+uint8_t redraw_flag = 0; // Redraw flag to indicate if camera position has changed
 
 // Title screen variables
 bool is_title_shown = false;
@@ -67,6 +71,7 @@ typedef struct {
 const banked_ptr_t image = {
     BANK(titlescreen), &HICOLOR_VAR(titlescreen)
 };
+
 
 /*
  *  TITLE SCREEN
@@ -89,6 +94,7 @@ void cancel_titlescreen() {
     hicolor_stop();
     is_title_shown = false;
 }
+
 
 /*
  *  COLLISION DETECTION
@@ -115,13 +121,182 @@ bool is_valid_tile(uint8_t x, uint8_t y) {
     return false;
 }
 
+
+/*
+ *  CAMERA
+ */
+// Camera update inline functions to directly replace function calls and check at compile time
+inline uint8_t update_column_left(uint8_t x) {
+#if (DEVICE_SCREEN_BUFFER_WIDTH == DEVICE_SCREEN_WIDTH)
+    return x + 1;
+#else
+    return x;
+#endif
+}
+
+inline uint8_t update_column_right(uint8_t x) {
+    return x + DEVICE_SCREEN_WIDTH;
+}
+
+inline uint8_t update_row_top(uint8_t y) {
+#if (DEVICE_SCREEN_BUFFER_HEIGHT == DEVICE_SCREEN_HEIGHT)
+    return y + 1;
+#else
+    return y;
+#endif
+}
+
+inline uint8_t update_row_bottom(uint8_t y) {
+    return y + DEVICE_SCREEN_HEIGHT;
+}
+
+void set_camera(void) {
+    move_bkg(camera_x, camera_y); // Update Hardware Scroll Position
+
+    // Up or down
+    map_pos_y = (uint8_t)(camera_y >> 3u);
+    if (map_pos_y != old_map_pos_y) {
+        if (camera_y < old_camera_y) {
+            set_bkg_submap(
+                map_pos_x, map_pos_y,
+                MIN(21u, bkg_MAP_WIDTH - map_pos_x),
+                1,
+                bkg_map,
+                bkg_MAP_WIDTH
+            );
+            set_bkg_submap_attributes(
+                map_pos_x, map_pos_y,
+                MIN(21u, bkg_MAP_WIDTH - map_pos_x),
+                1,
+                bkg_map_attributes,
+                bkg_MAP_WIDTH
+            );
+        } else {
+            if ((bkg_MAP_HEIGHT - 18u) > map_pos_y) {
+                set_bkg_submap(
+                    map_pos_x,
+                    map_pos_y + 18u,
+                    MIN(21u, bkg_MAP_WIDTH - map_pos_x),
+                    1,
+                    bkg_map,
+                    bkg_MAP_WIDTH
+                );
+                set_bkg_submap_attributes(
+                    map_pos_x,
+                    map_pos_y + 18u,
+                    MIN(21u, bkg_MAP_WIDTH - map_pos_x),
+                    1,
+                    bkg_map_attributes,
+                    bkg_MAP_WIDTH
+                );
+            }
+        }
+
+        old_map_pos_y = map_pos_y;
+    }
+
+    // Left or right
+    map_pos_x = (uint8_t)(camera_x >> 3u);
+    if (map_pos_x != old_map_pos_x) {
+        if (camera_x < old_camera_x) {
+            set_bkg_submap(
+                map_pos_x,
+                map_pos_y,
+                1,
+                MIN(19u, bkg_MAP_HEIGHT - map_pos_y),
+                bkg_map,
+                bkg_MAP_WIDTH
+            );
+            set_bkg_submap_attributes(
+                map_pos_x,
+                map_pos_y,
+                1,
+                MIN(19u, bkg_MAP_HEIGHT - map_pos_y),
+                bkg_map_attributes,
+                bkg_MAP_WIDTH
+            );
+        } else {
+            if ((bkg_MAP_WIDTH - 20u) > map_pos_x) {
+                set_bkg_submap(
+                    map_pos_x + 20u,
+                    map_pos_y,
+                    1,
+                    MIN(19u, bkg_MAP_HEIGHT - map_pos_y),
+                    bkg_map,
+                    bkg_MAP_WIDTH
+                );
+                set_bkg_submap_attributes(
+                    map_pos_x + 20u,
+                    map_pos_y,
+                    1,
+                    MIN(19u, bkg_MAP_HEIGHT - map_pos_y),
+                    bkg_map_attributes,
+                    bkg_MAP_WIDTH
+                );
+            }
+        }
+
+        old_map_pos_x = map_pos_x;
+    }
+
+    old_camera_x = camera_x;
+    old_camera_y = camera_y;
+}
+
+void init_camera(uint8_t x, uint8_t y) {
+    // Setting up tile data
+    set_native_tile_data(0, bkg_TILE_COUNT, bkg_tiles);
+    // Setting up palette data
+    if (_cpu == CGB_TYPE) set_bkg_palette(BKGF_CGB_PAL0, bkg_PALETTE_COUNT, bkg_palettes);
+
+    // Initial camera position
+    camera_x = x;
+    camera_y = y;
+    // Enforce map bounds
+    if (camera_x > CAMERA_MAX_X) camera_x = CAMERA_MAX_X;
+    if (camera_y > CAMERA_MAX_Y) camera_y = CAMERA_MAX_Y;
+    old_camera_x = camera_x;
+    old_camera_y = camera_y;
+
+    map_pos_x = camera_x >> 3;
+    map_pos_y = camera_y >> 3;
+    old_camera_x = old_map_pos_y = 255;
+    move_bkg(camera_x, camera_y);
+
+    // Draw initial map view on screen
+    set_bkg_submap(
+        map_pos_x,
+        map_pos_y,
+        MIN(DEVICE_SCREEN_WIDTH + 1u, bkg_MAP_WIDTH - map_pos_x),
+        MIN(DEVICE_SCREEN_WIDTH + 1u, bkg_MAP_HEIGHT - map_pos_y),
+        bkg_map,
+        bkg_MAP_WIDTH
+    );
+    set_bkg_submap_attributes(
+        map_pos_x,
+        map_pos_y,
+        MIN(DEVICE_SCREEN_WIDTH + 1u, bkg_MAP_WIDTH - map_pos_x),
+        MIN(DEVICE_SCREEN_WIDTH + 1u, bkg_MAP_HEIGHT - map_pos_y),
+        bkg_map_attributes,
+        bkg_MAP_WIDTH
+    );
+
+    redraw_flag = false;
+
+    move_bkg(camera_x, camera_y);
+    #if DEVICE_SCREEN_WIDTH == DEVICE_SCREEN_WIDTH
+        HIDE_LEFT_COLUMN;
+    #endif
+}
+
+
 /*
  *  PLAYER
  */
 void setup_player() {
     set_sprite_data(0, player_TILE_COUNT, player_tiles);
     player_x = 9 * TILE_SIZE;
-    player_y = 9 * TILE_SIZE;
+    player_y = 7 * TILE_SIZE;
     player_direction = J_DOWN;
     playerMetasprite = player_metasprites[0];
 }
@@ -132,25 +307,47 @@ uint8_t update_player() {
     uint8_t next_player_x = player_x;
     uint8_t next_player_y = player_y;
 
-    if (joypad_current & J_LEFT) {
-        next_player_x -= WALKING_SPEED;
-        player_direction = J_LEFT;
-        playerMoving = true;
-    }
-    if (joypad_current & J_RIGHT) {
-        next_player_x += WALKING_SPEED;
-        player_direction = J_RIGHT;
-        playerMoving = true;
-    }
     if (joypad_current & J_UP) {
         next_player_y -= WALKING_SPEED;
         player_direction = J_UP;
         playerMoving = true;
-    }
-    if (joypad_current & J_DOWN) {
+        if (camera_y) {
+            camera_y--;
+            redraw_flag = true;
+        }
+    } else if (joypad_current & J_DOWN) {
         next_player_y += WALKING_SPEED;
         player_direction = J_DOWN;
         playerMoving = true;
+        if (camera_y < CAMERA_MAX_Y) {
+            camera_y++;
+            redraw_flag = true;
+        }
+    }
+    if (joypad_current & J_LEFT) {
+        next_player_x -= WALKING_SPEED;
+        player_direction = J_LEFT;
+        playerMoving = true;
+        if (camera_x) {
+            camera_x--;
+            redraw_flag = true;
+        }
+    } else if (joypad_current & J_RIGHT) {
+        next_player_x += WALKING_SPEED;
+        player_direction = J_RIGHT;
+        playerMoving = true;
+        if (camera_x < CAMERA_MAX_X) {
+            camera_x++;
+            redraw_flag = true;
+        }
+    }
+
+    if (redraw_flag) {
+        vsync();
+        set_camera();
+        redraw_flag = false;
+    } else {
+        vsync();
     }
 
     if (playerMoving) {
@@ -158,11 +355,15 @@ uint8_t update_player() {
             set_sprite_data(0, player_TILE_COUNT, player_tiles);
 
             switch (player_direction) {
-                case J_DOWN: playerMetasprite = player_metasprites[0]; break;
-                case J_UP: playerMetasprite = player_metasprites[1]; break;
-                case J_LEFT: playerMetasprite = player_metasprites[2]; break;
-                case J_RIGHT: playerMetasprite = player_metasprites[3]; break;
-                default: break;
+            case J_DOWN: playerMetasprite = player_metasprites[0];
+                break;
+            case J_UP: playerMetasprite = player_metasprites[1];
+                break;
+            case J_LEFT: playerMetasprite = player_metasprites[2];
+                break;
+            case J_RIGHT: playerMetasprite = player_metasprites[3];
+                break;
+            default: break;
             }
         }
 
@@ -174,6 +375,7 @@ uint8_t update_player() {
 
     return move_metasprite(playerMetasprite, 0, 0, player_x, player_y + 10);
 }
+
 
 /*
  *  MAIN GAME LOOP
@@ -197,6 +399,7 @@ void main(void) {
 
         SHOW_SPRITES;
         SPRITES_8x16;
+        init_camera(0, 0);
         setup_player();
 
         while (true) {
@@ -204,13 +407,6 @@ void main(void) {
             uint8_t last_sprite = 0;
             last_sprite += update_player();
             hide_sprites_range(last_sprite, 40);
-
-            set_bkg_data(0, bkg_TILE_COUNT, bkg_tiles);
-            set_bkg_palette(0, bkg_PALETTE_COUNT, bkg_palettes);
-            VBK_REG = 1;
-            set_bkg_tiles(0, 0, TILEMAP_WIDTH, TILEMAP_HEIGHT, bkg_map_attributes);
-            VBK_REG = 0;
-            set_bkg_tiles(0, 0, TILEMAP_WIDTH, TILEMAP_HEIGHT, bkg_map);
 
             set_sprite_palette(0, palettes_PALETTE_COUNT, palettes_palettes);
             wait_vbl_done();

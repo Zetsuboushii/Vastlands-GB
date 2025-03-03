@@ -9,23 +9,23 @@
 #define bkg_TILE_ORIGIN 0
 #define bkg_TILE_W 8
 #define bkg_TILE_H 8
-#define bkg_WIDTH 160
-#define bkg_HEIGHT 144
-#define bkg_TILE_COUNT 63
-#define bkg_PALETTE_COUNT 6
+#define bkg_WIDTH 1248
+#define bkg_HEIGHT 528
+#define bkg_TILE_COUNT 210
+#define bkg_PALETTE_COUNT 4
 #define bkg_COLORS_PER_PALETTE 4
-#define bkg_TOTAL_COLORS 24
+#define bkg_TOTAL_COLORS 16
 #define bkg_MAP_ATTRIBUTES bkg_map_attributes
-#define bkg_MAP_ATTRIBUTES_WIDTH 20
-#define bkg_MAP_ATTRIBUTES_HEIGHT 18
-#define bkg_MAP_ATTRIBUTES_PACKED_WIDTH 20
-#define bkg_MAP_ATTRIBUTES_PACKED_HEIGHT 18
-extern const unsigned char bkg_map[360];
-extern const unsigned char bkg_map_attributes[360];
+#define bkg_MAP_ATTRIBUTES_WIDTH 156
+#define bkg_MAP_ATTRIBUTES_HEIGHT 66
+#define bkg_MAP_ATTRIBUTES_PACKED_WIDTH 156
+#define bkg_MAP_ATTRIBUTES_PACKED_HEIGHT 66
+extern const unsigned char bkg_map[10296];
+extern const unsigned char bkg_map_attributes[10296];
 
 BANKREF_EXTERN(bkg)
 
-extern const palette_color_t bkg_palettes[24];
-extern const uint8_t bkg_tiles[1008];
+extern const palette_color_t bkg_palettes[16];
+extern const uint8_t bkg_tiles[3360];
 
 #endif
