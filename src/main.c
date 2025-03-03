@@ -1,7 +1,7 @@
 #include <gbdk/platform.h>
 #include <stdint.h>
 #include <stdbool.h>
-
+#include <gbdk/emu_debug.h>
 #include <gb/gb.h>
 #include <gb/cgb.h>
 #include <gb/metasprites.h>
@@ -12,7 +12,19 @@
 #include <player.h>
 #include <bkg.h>
 #include <palettes.h>
-#include <gbdk/emu_debug.h>
+#include <stdio.h>
+#include <gbdk/console.h>
+
+#include <gbdk/font.h>
+
+font_t min_font;
+
+void init_window() {
+    font_init();
+    min_font = font_load(font_min);
+    SHOW_WIN;
+    move_win(7, 120);
+}
 
 #define LAST_TILE_INDEX 255u
 const uint8_t empty_tile_data[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -30,8 +42,6 @@ uint8_t key_state, key_state_prev;
 #define NUM_VALID_TILES  1
 
 const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04};
-
-#define PLAYER_SPEED 10
 
 const hicolor_data* img_data;
 uint8_t img_bank;
@@ -76,24 +86,22 @@ uint8_t nextPlayerX, nextPlayerY;
 
 metasprite_t const* playerMetasprite;
 
-uint8_t get_tile_index(uint8_t x, uint8_t y) {
-    uint8_t tile_x = x / TILE_SIZE;
-    uint8_t tile_y = y / TILE_SIZE;
-    EMU_printf("tile_x, tile_y: %u, %u\n", tile_x, tile_y);
-
-    uint8_t tile_index;
-    get_bkg_tiles(tile_x, tile_y, 1, 1, &tile_index);
-
-    return tile_index;
-}
-
 bool is_valid_tile(uint8_t x, uint8_t y) {
-    EMU_printf("Original x, y: %u, %u\n", x, y);
-    for (uint8_t i = 0; i < NUM_VALID_TILES; i++) {
-        if (valid_tiles[i] == get_tile_index(x, y)) { return true; }
-        EMU_printf("get_tile_index: %u\n", get_tile_index(x, y));
+    uint8_t tile_x = x / 8;
+    uint8_t tile_y = y / 8;
+
+    if (tile_x > TILEMAP_WIDTH || tile_x < 1 || tile_y > TILEMAP_HEIGHT || tile_y < 1) {
+        return false;
     }
 
+    uint16_t index = (tile_y - 1) * TILEMAP_WIDTH + tile_x - 1;
+    uint16_t tile = bkg_map[index];
+
+    for (uint8_t i = 0; i < ARRAY_COUNT(valid_tiles); i++) {
+        if (tile == valid_tiles[i]) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -110,6 +118,8 @@ void setup_player() {
 
 uint8_t update_player() {
     uint8_t playerLastDirection = playerDirection;
+
+
     uint8_t playerMoving = false;
     nextPlayerX = playerX;
     nextPlayerY = playerY;
