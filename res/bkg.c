@@ -18,7 +18,6 @@ const palette_color_t bkg_palettes[24] = {
 	RGB8(101,202,  0), RGB8(230,130,  0), RGB8(173, 29, 14), RGB8(  0,  0,  0)
 	,
 	RGB8(230,130,  0), RGB8( 29,115,  0), RGB8(173, 29, 14), RGB8(  0,  0,  0)
-	
 };
 
 const uint8_t bkg_tiles[1008] = {
