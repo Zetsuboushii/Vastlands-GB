@@ -157,6 +157,7 @@ void set_camera(void) {
     map_pos_y = (uint8_t)(camera_y >> 3u);
     if (map_pos_y != old_map_pos_y) {
         if (camera_y < old_camera_y) {
+            SWITCH_ROM_MBC5(2);
             set_bkg_submap(
                 map_pos_x, map_pos_y,
                 MIN(21u, bkg_MAP_WIDTH - map_pos_x),
@@ -164,6 +165,7 @@ void set_camera(void) {
                 bkg_map,
                 bkg_MAP_WIDTH
             );
+            SWITCH_ROM_MBC5(3);
             set_bkg_submap_attributes(
                 map_pos_x, map_pos_y,
                 MIN(21u, bkg_MAP_WIDTH - map_pos_x),
@@ -171,8 +173,10 @@ void set_camera(void) {
                 bkg_map_attributes,
                 bkg_MAP_WIDTH
             );
+            SWITCH_ROM_MBC5(0);
         } else {
             if ((bkg_MAP_HEIGHT - 18u) > map_pos_y) {
+                SWITCH_ROM_MBC5(2);
                 set_bkg_submap(
                     map_pos_x,
                     map_pos_y + 18u,
@@ -181,6 +185,7 @@ void set_camera(void) {
                     bkg_map,
                     bkg_MAP_WIDTH
                 );
+                SWITCH_ROM_MBC5(3);
                 set_bkg_submap_attributes(
                     map_pos_x,
                     map_pos_y + 18u,
@@ -189,6 +194,7 @@ void set_camera(void) {
                     bkg_map_attributes,
                     bkg_MAP_WIDTH
                 );
+                SWITCH_ROM_MBC5(0);
             }
         }
 
@@ -199,6 +205,7 @@ void set_camera(void) {
     map_pos_x = (uint8_t)(camera_x >> 3u);
     if (map_pos_x != old_map_pos_x) {
         if (camera_x < old_camera_x) {
+            SWITCH_ROM_MBC5(2);
             set_bkg_submap(
                 map_pos_x,
                 map_pos_y,
@@ -207,6 +214,7 @@ void set_camera(void) {
                 bkg_map,
                 bkg_MAP_WIDTH
             );
+            SWITCH_ROM_MBC5(3);
             set_bkg_submap_attributes(
                 map_pos_x,
                 map_pos_y,
@@ -215,8 +223,10 @@ void set_camera(void) {
                 bkg_map_attributes,
                 bkg_MAP_WIDTH
             );
+            SWITCH_ROM_MBC5(0);
         } else {
             if ((bkg_MAP_WIDTH - 20u) > map_pos_x) {
+                SWITCH_ROM_MBC5(2);
                 set_bkg_submap(
                     map_pos_x + 20u,
                     map_pos_y,
@@ -225,6 +235,7 @@ void set_camera(void) {
                     bkg_map,
                     bkg_MAP_WIDTH
                 );
+                SWITCH_ROM_MBC5(3);
                 set_bkg_submap_attributes(
                     map_pos_x + 20u,
                     map_pos_y,
@@ -233,6 +244,7 @@ void set_camera(void) {
                     bkg_map_attributes,
                     bkg_MAP_WIDTH
                 );
+                SWITCH_ROM_MBC5(0);
             }
         }
 
@@ -245,9 +257,14 @@ void set_camera(void) {
 
 void init_camera(uint8_t x, uint8_t y) {
     // Setting up tile data
+    SWITCH_ROM_MBC5(1);
     set_native_tile_data(0, bkg_TILE_COUNT, bkg_tiles);
+    SWITCH_ROM_MBC5(0);
+
     // Setting up palette data
+    SWITCH_ROM_MBC5(4);
     if (_cpu == CGB_TYPE) set_bkg_palette(BKGF_CGB_PAL0, bkg_PALETTE_COUNT, bkg_palettes);
+    SWITCH_ROM_MBC5(0);
 
     // Initial camera position
     camera_x = x;
@@ -264,6 +281,7 @@ void init_camera(uint8_t x, uint8_t y) {
     move_bkg(camera_x, camera_y);
 
     // Draw initial map view on screen
+    SWITCH_ROM_MBC5(2);
     set_bkg_submap(
         map_pos_x,
         map_pos_y,
@@ -272,6 +290,7 @@ void init_camera(uint8_t x, uint8_t y) {
         bkg_map,
         bkg_MAP_WIDTH
     );
+    SWITCH_ROM_MBC5(3);
     set_bkg_submap_attributes(
         map_pos_x,
         map_pos_y,
@@ -280,6 +299,7 @@ void init_camera(uint8_t x, uint8_t y) {
         bkg_map_attributes,
         bkg_MAP_WIDTH
     );
+    SWITCH_ROM_MBC5(0);
 
     redraw_flag = false;
 

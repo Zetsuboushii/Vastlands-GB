@@ -20,12 +20,14 @@
 #define bkg_MAP_ATTRIBUTES_HEIGHT 66
 #define bkg_MAP_ATTRIBUTES_PACKED_WIDTH 156
 #define bkg_MAP_ATTRIBUTES_PACKED_HEIGHT 66
-extern const unsigned char bkg_map[10296];
-extern const unsigned char bkg_map_attributes[10296];
 
-BANKREF_EXTERN(bkg)
-
+BANKREF_EXTERN(bkg_palettes)
 extern const palette_color_t bkg_palettes[16];
+BANKREF_EXTERN(bkg_tiles)
 extern const uint8_t bkg_tiles[3360];
+BANKREF_EXTERN(bkg_map)
+extern const unsigned char bkg_map[10296];
+BANKREF_EXTERN(bkg_map_attributes)
+extern const unsigned char bkg_map_attributes[10296];
 
 #endif
