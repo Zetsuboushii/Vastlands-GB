@@ -26,8 +26,8 @@
 #define CAMERA_MAX_Y ((bkg_MAP_HEIGHT - DEVICE_SCREEN_HEIGHT) * 8)
 #define CAMERA_MAX_X ((bkg_MAP_WIDTH - DEVICE_SCREEN_WIDTH) * 8)
 #define TILE_SIZE 16
-#define NUM_VALID_TILES 18
-#define WALKING_SPEED 3
+#define NUM_VALID_TILES 5
+#define WALKING_SPEED 1
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
@@ -38,11 +38,8 @@
 const uint8_t empty_tile_data[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Valid tiles for collision detection
-const uint8_t valid_tiles[NUM_VALID_TILES] = {
-    0x04, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x2C,
-    0x37, 0x38
-};
+const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04, 0x05, 0x06, 0x0c, 0x0d};
+
 
 // Input variables
 uint8_t key_state, key_state_prev;
@@ -50,7 +47,7 @@ uint8_t joypad_current = 0;
 
 // Player variables
 uint8_t player_direction = 0;
-uint8_t player_x, player_y; // Current player positions in pixels
+uint16_t player_x, player_y; // Current player positions in pixels
 metasprite_t const* playerMetasprite;
 
 // Camera variables
@@ -99,24 +96,29 @@ void cancel_titlescreen() {
 /*
  *  COLLISION DETECTION
  */
-bool is_valid_tile(uint8_t x, uint8_t y) {
-    uint8_t tile_x = x / 8;
-    uint8_t tile_y = y / 8;
+bool is_valid_tile(uint16_t x, uint16_t y) {
+    uint16_t tile_x = x / 8;
+    uint16_t tile_y = y / 8;
 
     if (tile_x > TILEMAP_WIDTH || tile_x < 1 || tile_y > TILEMAP_HEIGHT || tile_y < 1) {
         return false;
     }
 
     uint16_t index = (tile_y - 1) * TILEMAP_WIDTH + tile_x - 1;
-    uint16_t tile_dr = bkg_map[index];
-    uint16_t tile_ur = bkg_map[index + TILEMAP_WIDTH];
+    uint16_t tile_dr;
+    SWITCH_ROM_MBC5(2);
+    tile_dr= bkg_map[index];
+    SWITCH_ROM_MBC5(0);
+    //uint16_t tile_ur = bkg_map[index + TILEMAP_WIDTH];
+
+    EMU_printf("checking: %x in %u,%u\n", tile_dr, tile_y, tile_x);
 
     for (uint8_t i = 0; i < ARRAY_COUNT(valid_tiles); i++) {
-        for (uint8_t j = 0; j < ARRAY_COUNT(valid_tiles); j++) {
-            if (tile_dr == valid_tiles[i] && tile_ur == valid_tiles[j]) {
+        //for (uint8_t j = 0; j < ARRAY_COUNT(valid_tiles); j++) {
+            if (tile_dr == valid_tiles[i] /*&& tile_ur == valid_tiles[j]*/) {
                 return true;
             }
-        }
+        //}
     }
     return false;
 }
@@ -304,9 +306,9 @@ void init_camera(uint8_t x, uint8_t y) {
     redraw_flag = false;
 
     move_bkg(camera_x, camera_y);
-    #if DEVICE_SCREEN_WIDTH == DEVICE_SCREEN_WIDTH
-        HIDE_LEFT_COLUMN;
-    #endif
+#if DEVICE_SCREEN_WIDTH == DEVICE_SCREEN_WIDTH
+    HIDE_LEFT_COLUMN;
+#endif
 }
 
 
@@ -324,51 +326,29 @@ void setup_player() {
 uint8_t update_player() {
     uint8_t playerLastDirection = player_direction;
     uint8_t playerMoving = false;
-    uint8_t next_player_x = player_x;
-    uint8_t next_player_y = player_y;
+    uint16_t next_player_x = player_x;
+    uint16_t next_player_y = player_y;
 
     if (joypad_current & J_UP) {
         next_player_y -= WALKING_SPEED;
         player_direction = J_UP;
         playerMoving = true;
-        if (camera_y) {
-            camera_y--;
-            redraw_flag = true;
-        }
     } else if (joypad_current & J_DOWN) {
         next_player_y += WALKING_SPEED;
         player_direction = J_DOWN;
         playerMoving = true;
-        if (camera_y < CAMERA_MAX_Y) {
-            camera_y++;
-            redraw_flag = true;
-        }
     }
     if (joypad_current & J_LEFT) {
         next_player_x -= WALKING_SPEED;
         player_direction = J_LEFT;
         playerMoving = true;
-        if (camera_x) {
-            camera_x--;
-            redraw_flag = true;
-        }
     } else if (joypad_current & J_RIGHT) {
         next_player_x += WALKING_SPEED;
         player_direction = J_RIGHT;
         playerMoving = true;
-        if (camera_x < CAMERA_MAX_X) {
-            camera_x++;
-            redraw_flag = true;
-        }
     }
 
-    if (redraw_flag) {
-        vsync();
-        set_camera();
-        redraw_flag = false;
-    } else {
-        vsync();
-    }
+
 
     if (playerMoving) {
         if (player_direction != playerLastDirection) {
@@ -390,10 +370,40 @@ uint8_t update_player() {
         if (is_valid_tile(next_player_x, next_player_y)) {
             player_x = next_player_x;
             player_y = next_player_y;
+
+            if (player_direction == J_UP) {
+                if (camera_y) {
+                    camera_y--;
+                    redraw_flag = true;
+                }
+            } else if (player_direction == J_DOWN) {
+                if (camera_y < CAMERA_MAX_Y) {
+                    camera_y++;
+                    redraw_flag = true;
+                }
+            } else if (player_direction == J_LEFT) {
+                if (camera_x) {
+                    camera_x--;
+                    redraw_flag = true;
+                }
+            } else if (player_direction == J_RIGHT) {
+                if (camera_x < CAMERA_MAX_X) {
+                    camera_x++;
+                    redraw_flag = true;
+                }
+            }
+
+            if (redraw_flag) {
+                vsync();
+                set_camera();
+                redraw_flag = false;
+            } else {
+                vsync();
+            }
         }
     }
 
-    return move_metasprite(playerMetasprite, 0, 0, player_x, player_y + 10);
+    return move_metasprite(playerMetasprite, 0, 0, player_x, player_y);
 }
 
 
