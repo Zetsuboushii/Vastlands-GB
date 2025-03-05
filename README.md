@@ -1,4 +1,4 @@
-<p align="center"><img src="res/hicolor/titlescreen.png" height="300px" style="image-rendering: crisp-edges; image-rendering: pixelated;" alt=""/></p>
+<p align="center"><img src="res/img/titlescreen_big.png" height="300px" alt=""/></p>
 <h1 align="center">Tome of the Vastlands: Scourge of Greed</h1>
 <p align="center"><strong><code>Vastlands-Wiki</code></strong></p>
 <p align="center">Ein natives Game Boy Color Spiel</p>
