@@ -30,6 +30,7 @@ include_directories(
         "include"
         "."
         "res"
+        "src"
 )
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wm-yC -Wf-MMD -Wf-Wp-MP -Wl-yt0x19 -autobank -Wb-v -Wb-ext=.rel")
