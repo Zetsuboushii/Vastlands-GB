@@ -1,6 +1,6 @@
 <p align="center"><img src="res/img/titlescreen_big.png" height="300px" alt=""/></p>
 <h1 align="center">Tome of the Vastlands: Scourge of Greed</h1>
-<p align="center"><strong><code>Vastlands-Wiki</code></strong></p>
+<p align="center"><strong><code>Vastlands-GB</code></strong></p>
 <p align="center">Ein natives Game Boy Color Spiel</p>
 <p align="center">
   <img src="https://img.shields.io/maintenance/yes/2025"  alt=""/>
