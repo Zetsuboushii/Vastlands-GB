@@ -13,6 +13,7 @@
 #include <bkg.h>
 #include <palettes.h>
 #include <stdio.h>
+#include <gb/hardware.h>
 
 
 /*
@@ -26,20 +27,20 @@
 #define CAMERA_MAX_Y ((bkg_MAP_HEIGHT - DEVICE_SCREEN_HEIGHT) * 8)
 #define CAMERA_MAX_X ((bkg_MAP_WIDTH - DEVICE_SCREEN_WIDTH) * 8)
 #define TILE_SIZE 16
-#define NUM_VALID_TILES 5
-#define WALKING_SPEED 2
+#define WALKING_SPEED 3
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof(arr[0]))
+
+#define SCREEN_WIDTH 160
+#define SCREEN_HEIGHT 144
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 #define UPDATE_KEYS() (key_state_prev = key_state, key_state = joypad())
 #define KEY_NEW_PRESS(mask) ((key_state & ~key_state_prev) & (mask))
 #define KEY_IS_PRESSED(mask) (key_state & (mask))
 
-const uint8_t empty_tile_data[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
 // Valid tiles for collision detection
-const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04, 0x05, 0x06, 0x0c, 0x0d};
-
+#define NUM_VALID_TILES 21
+const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04, 0x05, 0x06, 0x0c, 0x0d, 0x2e, 0x33, 0x34, 0x79, 0x2d, 0xa3, 0x38, 0x97, 0x98, 0x6e, 0xa4, 0x6f, 0x60, 0x53, 0x54, 0x61};
 
 // Input variables
 uint8_t key_state, key_state_prev;
@@ -53,7 +54,7 @@ metasprite_t const* playerMetasprite;
 // Camera variables
 uint16_t camera_x, camera_y;
 uint16_t old_camera_x, old_camera_y; // Current and old camera positions in pixels
-uint8_t map_pos_x, map_pos_y, old_map_pos_x, old_map_pos_y; // Current and old map positions in tiles
+uint16_t map_pos_x, map_pos_y, old_map_pos_x, old_map_pos_y; // Current and old map positions in tiles
 uint8_t redraw_flag = 0; // Redraw flag to indicate if camera position has changed
 
 // Title screen variables
@@ -98,12 +99,9 @@ void cancel_titlescreen() {
  *  COLLISION DETECTION
  */
 bool is_valid_tile(uint16_t x, uint16_t y) {
-    uint16_t world_x = x + camera_x;
-    uint16_t world_y = y + camera_y;
-    uint16_t tile_x = world_x / 8;
-    uint16_t tile_y = world_y / 8;
+    uint16_t tile_x = x / 8;
+    uint16_t tile_y = y / 8;
 
-    // Überprüfe, ob die Tile-Koordinaten im gültigen Bereich liegen
     if (tile_x > TILEMAP_WIDTH || tile_x < 1 || tile_y > TILEMAP_HEIGHT || tile_y < 1) {
         return false;
     }
@@ -114,7 +112,7 @@ bool is_valid_tile(uint16_t x, uint16_t y) {
     tile_dr = bkg_map[index];
     SWITCH_ROM_MBC5(0);
 
-    EMU_printf("checking: %x in %u,%u\n", tile_dr, tile_y, tile_x);
+    EMU_printf("Checking: Tile %x in %u,%u at %x\n", tile_dr, tile_y - 1, tile_x - 1, index);
 
     for (uint8_t i = 0; i < ARRAY_COUNT(valid_tiles); i++) {
         if (tile_dr == valid_tiles[i]) {
@@ -123,7 +121,6 @@ bool is_valid_tile(uint16_t x, uint16_t y) {
     }
     return false;
 }
-
 
 
 /*
@@ -155,10 +152,8 @@ inline uint8_t update_row_bottom(uint8_t y) {
 }
 
 void set_camera(void) {
-    move_bkg(camera_x, camera_y); // Update Hardware Scroll Position
-
     // Up or down
-    map_pos_y = (uint8_t)(camera_y >> 3u);
+    map_pos_y = (uint16_t)(camera_y >> 3);
     if (map_pos_y != old_map_pos_y) {
         if (camera_y < old_camera_y) {
             SWITCH_ROM_MBC5(2);
@@ -179,7 +174,7 @@ void set_camera(void) {
             );
             SWITCH_ROM_MBC5(0);
         } else {
-            if ((bkg_MAP_HEIGHT - 18u) > map_pos_y) {
+            if ((bkg_MAP_HEIGHT - 18) > map_pos_y) {
                 SWITCH_ROM_MBC5(2);
                 set_bkg_submap(
                     map_pos_x,
@@ -206,7 +201,7 @@ void set_camera(void) {
     }
 
     // Left or right
-    map_pos_x = (uint8_t)(camera_x >> 3u);
+    map_pos_x = (uint16_t)(camera_x >> 3);
     if (map_pos_x != old_map_pos_x) {
         if (camera_x < old_camera_x) {
             SWITCH_ROM_MBC5(2);
@@ -229,7 +224,7 @@ void set_camera(void) {
             );
             SWITCH_ROM_MBC5(0);
         } else {
-            if ((bkg_MAP_WIDTH - 20u) > map_pos_x) {
+            if ((bkg_MAP_WIDTH - 20) > map_pos_x) {
                 SWITCH_ROM_MBC5(2);
                 set_bkg_submap(
                     map_pos_x + 20u,
@@ -257,6 +252,8 @@ void set_camera(void) {
 
     old_camera_x = camera_x;
     old_camera_y = camera_y;
+
+    move_bkg(camera_x, camera_y); // Update Hardware Scroll Position
 }
 
 void init_camera(uint8_t x, uint8_t y) {
@@ -351,7 +348,6 @@ uint8_t update_player() {
     }
 
 
-
     if (playerMoving) {
         if (player_direction != playerLastDirection) {
             set_sprite_data(0, player_TILE_COUNT, player_tiles);
@@ -369,33 +365,50 @@ uint8_t update_player() {
             }
         }
 
+        uint16_t min_player_x = 0;
+        uint16_t max_player_x = CAMERA_MAX_X + SCREEN_WIDTH + 8;
+        uint16_t min_player_y = 0;
+        uint16_t max_player_y = CAMERA_MAX_Y + SCREEN_HEIGHT + 8;
+
+        if (next_player_x < min_player_x) {
+            next_player_x = min_player_x;
+        } else if (next_player_x > max_player_x) {
+            next_player_x = max_player_x;
+        }
+        if (next_player_y < min_player_y) {
+            next_player_y = min_player_y;
+        } else if (next_player_y > max_player_y) {
+            next_player_y = max_player_y;
+        }
+
+
         if (is_valid_tile(next_player_x, next_player_y)) {
             player_x = next_player_x;
             player_y = next_player_y;
 
-            uint16_t desired_camera_x = (player_x > (DEVICE_SCREEN_WIDTH >> 1)) ? player_x - (DEVICE_SCREEN_WIDTH >> 1) : 0;
-            uint16_t desired_camera_y = (player_y > (DEVICE_SCREEN_HEIGHT >> 1)) ? player_y - (DEVICE_SCREEN_HEIGHT >> 1) : 0;
+            uint16_t desired_camera_x =
+                (player_x > (160 >> 1)) ? player_x - (160 >> 1) : 0;
+            uint16_t desired_camera_y =
+                (player_y > (144 >> 1)) ? player_y - (144 >> 1) : 0;
 
             if (desired_camera_x > CAMERA_MAX_X) desired_camera_x = CAMERA_MAX_X;
             if (desired_camera_y > CAMERA_MAX_Y) desired_camera_y = CAMERA_MAX_Y;
 
-            if (desired_camera_x != camera_x || desired_camera_y != camera_y) {
+            if ((desired_camera_x != camera_x) || (desired_camera_y != camera_y)) {
                 camera_x = desired_camera_x;
                 camera_y = desired_camera_y;
-                redraw_flag = true;
-            }
-
-            if (redraw_flag) {
                 vsync();
                 set_camera();
-                redraw_flag = false;
             } else {
                 vsync();
             }
         }
     }
 
-    return move_metasprite(playerMetasprite, 0, 0, player_x, player_y);
+    uint16_t screen_x = player_x - camera_x;
+    uint16_t screen_y = player_y - camera_y + 8;
+
+    return move_metasprite(playerMetasprite, 0, 0, screen_x, screen_y);
 }
 
 
@@ -421,8 +434,11 @@ void main(void) {
 
         SHOW_SPRITES;
         SPRITES_8x16;
-        init_camera(0, 0);
         setup_player();
+
+        uint16_t init_cam_x = player_x - (160 >> 1);
+        uint16_t init_cam_y = player_y - (144 >> 1);
+        init_camera(init_cam_x, init_cam_y);
 
         while (true) {
             joypad_current = joypad();
