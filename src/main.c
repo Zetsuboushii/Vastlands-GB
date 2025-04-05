@@ -1,3 +1,5 @@
+#define __TARGET_gb
+
 #include <gbdk/platform.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -9,7 +11,11 @@
 #include <gbdk/font.h>
 #include <gbc_hicolor.h>
 #include <titlescreen.h>
-#include <player.h>
+#include <player_down.h>
+#include <player_up.h>
+#include <player_left.h>
+#include <player_attack.h>
+#include <axe.h>
 #include <bkg.h>
 #include <palettes.h>
 #include <stdio.h>
@@ -40,16 +46,29 @@
 
 // Valid tiles for collision detection
 #define NUM_VALID_TILES 21
-const uint8_t valid_tiles[NUM_VALID_TILES] = {0x04, 0x05, 0x06, 0x0c, 0x0d, 0x2e, 0x33, 0x34, 0x79, 0x2d, 0xa3, 0x38, 0x97, 0x98, 0x6e, 0xa4, 0x6f, 0x60, 0x53, 0x54, 0x61};
+const uint8_t valid_tiles[NUM_VALID_TILES] = {
+    0x04, 0x05, 0x06, 0x0c, 0x0d, 0x2e, 0x33, 0x34, 0x79, 0x2d, 0xa3, 0x38, 0x97, 0x98, 0x6e, 0xa4, 0x6f, 0x60, 0x53,
+    0x54, 0x61
+};
 
 // Input variables
 uint8_t key_state, key_state_prev;
 uint8_t joypad_current = 0;
 
-// Player variables
-uint8_t player_direction = 0;
-uint16_t player_x, player_y; // Current player positions in pixels
-metasprite_t const* playerMetasprite;
+
+
+// Sprite Two-Frame Counter
+uint8_t two_frame_counter, two_frame_real_value = 0;
+
+void update_two_frame_counter() {
+    two_frame_counter += 3;
+    two_frame_real_value = two_frame_counter >> 4;
+
+    if (two_frame_real_value >= 2) {
+        two_frame_real_value = 0;
+        two_frame_counter = 0;
+    }
+}
 
 // Camera variables
 uint16_t camera_x, camera_y;
@@ -93,7 +112,6 @@ void cancel_titlescreen() {
     hicolor_stop();
     is_title_shown = false;
 }
-
 
 /*
  *  COLLISION DETECTION
@@ -314,103 +332,200 @@ void init_camera(uint8_t x, uint8_t y) {
 /*
  *  PLAYER
  */
+
+// Player variables
+uint8_t player_direction = 0;
+uint16_t player_x, player_y; // Current player positions in pixels
+metasprite_t const* player_metasprite;
+bool flip_player = false;
+bool player_mid_attack = false;
+bool player_attacked = false;
+
 void setup_player() {
-    set_sprite_data(0, player_TILE_COUNT, player_tiles);
+    set_sprite_data(0, player_down_TILE_COUNT, player_down_tiles);
     player_x = 9 * TILE_SIZE;
     player_y = 7 * TILE_SIZE;
     player_direction = J_DOWN;
-    playerMetasprite = player_metasprites[0];
+    player_metasprite = player_down_metasprites[0];
 }
 
+
+
 uint8_t update_player() {
-    uint8_t playerLastDirection = player_direction;
-    uint8_t playerMoving = false;
+    uint8_t player_last_direction = player_direction;
+    uint8_t player_moving = false;
+    uint8_t player_attacking = false;
     uint16_t next_player_x = player_x;
     uint16_t next_player_y = player_y;
 
-    if (joypad_current & J_UP) {
-        next_player_y -= WALKING_SPEED;
-        player_direction = J_UP;
-        playerMoving = true;
-    } else if (joypad_current & J_DOWN) {
-        next_player_y += WALKING_SPEED;
-        player_direction = J_DOWN;
-        playerMoving = true;
-    }
-    if (joypad_current & J_LEFT) {
-        next_player_x -= WALKING_SPEED;
-        player_direction = J_LEFT;
-        playerMoving = true;
-    } else if (joypad_current & J_RIGHT) {
-        next_player_x += WALKING_SPEED;
-        player_direction = J_RIGHT;
-        playerMoving = true;
-    }
+    bool up = joypad_current & J_UP;
+    bool down = joypad_current & J_DOWN;
+    bool left = joypad_current & J_LEFT;
+    bool right = joypad_current & J_RIGHT;
+    bool attack = joypad_current & J_A;
 
+    bool move_x = left | right;
+    bool move_y = up | down;
+    bool moving = move_x | move_y;
 
-    if (playerMoving) {
-        if (player_direction != playerLastDirection) {
-            set_sprite_data(0, player_TILE_COUNT, player_tiles);
+    if (!player_mid_attack) {
+        if (up) {
+            next_player_y -= WALKING_SPEED;
+            player_direction = J_UP;
+            player_moving = true;
+        } else if (down) {
+            next_player_y += WALKING_SPEED;
+            player_direction = J_DOWN;
+            player_moving = true;
+        }
+        if (left) {
+            next_player_x -= WALKING_SPEED;
+            player_direction = J_LEFT;
+            player_moving = true;
+        } else if (right) {
+            next_player_x += WALKING_SPEED;
+            player_direction = J_RIGHT;
+            player_moving = true;
+        }
 
+        if (attack && !player_attacked) {
+            player_attacking = true;
+            player_moving = false;
+        }
+
+        if (!attack) {
+            player_attacked = false;
+        }
+
+        if (player_moving) {
+            if (true) {
+                switch (player_direction) {
+                case J_DOWN:
+                    set_sprite_data(0, player_down_TILE_COUNT, player_down_tiles);
+                    break;
+                case J_UP:
+                    set_sprite_data(0, player_up_TILE_COUNT, player_up_tiles);
+                    break;
+                case J_LEFT:
+                case J_RIGHT:
+                    set_sprite_data(0, player_left_TILE_COUNT, player_left_tiles);
+                    break;
+                default: ;
+                }
+            }
             switch (player_direction) {
-            case J_DOWN: playerMetasprite = player_metasprites[0];
+            case J_DOWN:
+                player_metasprite = player_down_metasprites[two_frame_real_value];
+                flip_player = false;
                 break;
-            case J_UP: playerMetasprite = player_metasprites[1];
+            case J_UP:
+                player_metasprite = player_up_metasprites[two_frame_real_value];
+                flip_player = false;
                 break;
-            case J_LEFT: playerMetasprite = player_metasprites[2];
+            case J_LEFT:
+                player_metasprite = player_left_metasprites[two_frame_real_value];
+                flip_player = false;
                 break;
-            case J_RIGHT: playerMetasprite = player_metasprites[3];
+            case J_RIGHT:
+                player_metasprite = player_left_metasprites[two_frame_real_value];
+                flip_player = true;
                 break;
-            default: break;
+            default: ;
             }
-        }
 
-        uint16_t min_player_x = 0;
-        uint16_t max_player_x = CAMERA_MAX_X + SCREEN_WIDTH + 8;
-        uint16_t min_player_y = 0;
-        uint16_t max_player_y = CAMERA_MAX_Y + SCREEN_HEIGHT + 8;
+            uint16_t min_player_x = 0;
+            uint16_t max_player_x = CAMERA_MAX_X + SCREEN_WIDTH + 8;
+            uint16_t min_player_y = 0;
+            uint16_t max_player_y = CAMERA_MAX_Y + SCREEN_HEIGHT + 8;
 
-        if (next_player_x < min_player_x) {
-            next_player_x = min_player_x;
-        } else if (next_player_x > max_player_x) {
-            next_player_x = max_player_x;
-        }
-        if (next_player_y < min_player_y) {
-            next_player_y = min_player_y;
-        } else if (next_player_y > max_player_y) {
-            next_player_y = max_player_y;
-        }
-
-
-        if (is_valid_tile(next_player_x, next_player_y)) {
-            player_x = next_player_x;
-            player_y = next_player_y;
-
-            uint16_t desired_camera_x =
-                (player_x > (160 >> 1)) ? player_x - (160 >> 1) : 0;
-            uint16_t desired_camera_y =
-                (player_y > (144 >> 1)) ? player_y - (144 >> 1) : 0;
-
-            if (desired_camera_x > CAMERA_MAX_X) desired_camera_x = CAMERA_MAX_X;
-            if (desired_camera_y > CAMERA_MAX_Y) desired_camera_y = CAMERA_MAX_Y;
-
-            if ((desired_camera_x != camera_x) || (desired_camera_y != camera_y)) {
-                camera_x = desired_camera_x;
-                camera_y = desired_camera_y;
-                vsync();
-                set_camera();
-            } else {
-                vsync();
+            if (next_player_x < min_player_x) {
+                next_player_x = min_player_x;
+            } else if (next_player_x > max_player_x) {
+                next_player_x = max_player_x;
             }
+            if (next_player_y < min_player_y) {
+                next_player_y = min_player_y;
+            } else if (next_player_y > max_player_y) {
+                next_player_y = max_player_y;
+            }
+
+            if (is_valid_tile(next_player_x, next_player_y)) {
+                player_x = next_player_x;
+                player_y = next_player_y;
+
+                uint16_t desired_camera_x =
+                    (player_x > (160 >> 1)) ? player_x - (160 >> 1) : 0;
+                uint16_t desired_camera_y =
+                    (player_y > (144 >> 1)) ? player_y - (144 >> 1) : 0;
+
+                if (desired_camera_x > CAMERA_MAX_X) desired_camera_x = CAMERA_MAX_X;
+                if (desired_camera_y > CAMERA_MAX_Y) desired_camera_y = CAMERA_MAX_Y;
+
+                if ((desired_camera_x != camera_x) || (desired_camera_y != camera_y)) {
+                    camera_x = desired_camera_x;
+                    camera_y = desired_camera_y;
+                    vsync();
+                    set_camera();
+                } else {
+                    vsync();
+                }
+            }
+        } else if (player_attacking) {
+            set_sprite_data(0, player_attack_TILE_COUNT, player_attack_tiles);
+            switch (player_direction) {
+            case J_DOWN:
+                player_metasprite = player_attack_metasprites[0];
+                flip_player = false;
+                break;
+            case J_UP:
+                player_metasprite = player_attack_metasprites[2];
+                flip_player = false;
+                break;
+            case J_LEFT:
+                player_metasprite = player_attack_metasprites[4];
+                flip_player = false;
+                break;
+            case J_RIGHT:
+                player_metasprite = player_attack_metasprites[4];
+                flip_player = true;
+                break;
+            default: ;
+            }
+            player_mid_attack = true;
         }
+    } else {
+        set_sprite_data(0, player_attack_TILE_COUNT, player_attack_tiles);
+        switch (player_direction) {
+        case J_DOWN:
+            player_metasprite = player_attack_metasprites[1];
+            flip_player = false;
+            break;
+        case J_UP:
+            player_metasprite = player_attack_metasprites[3];
+            flip_player = false;
+            break;
+        case J_LEFT:
+            player_metasprite = player_attack_metasprites[4];
+            flip_player = false;
+            break;
+        case J_RIGHT:
+            player_metasprite = player_attack_metasprites[4];
+            flip_player = true;
+            break;
+        default: ;
+        }
+        player_mid_attack = false;
     }
 
-    uint16_t screen_x = player_x - camera_x;
-    uint16_t screen_y = player_y - camera_y + 8;
+    const uint16_t screen_x = player_x - camera_x;
+    const uint16_t screen_y = player_y - camera_y + 1;
 
-    return move_metasprite(playerMetasprite, 0, 0, screen_x, screen_y);
+    if (flip_player) {
+        return move_metasprite_vflip(player_metasprite, 0, 0, screen_x, screen_y);
+    } else {
+        return move_metasprite(player_metasprite, 0, 0, screen_x, screen_y);
+    }
 }
-
 
 /*
  *  MAIN GAME LOOP
@@ -442,11 +557,13 @@ void main(void) {
 
         while (true) {
             joypad_current = joypad();
+
+            update_two_frame_counter();
             uint8_t last_sprite = 0;
             last_sprite += update_player();
             hide_sprites_range(last_sprite, 40);
-
             set_sprite_palette(0, palettes_PALETTE_COUNT, palettes_palettes);
+
             wait_vbl_done();
         }
     }
