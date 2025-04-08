@@ -2,9 +2,9 @@
 #ifndef METASPRITE_axe_H
 #define METASPRITE_axe_H
 
-#include <stdint.h>
-#include <gbdk/platform.h>
 #include <gbdk/metasprites.h>
+#include <gbdk/platform.h>
+#include <stdint.h>
 
 #define axe_TILE_ORIGIN 0
 #define axe_TILE_W 8
@@ -19,7 +19,7 @@
 #define axe_PIVOT_Y 8
 #define axe_PIVOT_W 16
 #define axe_PIVOT_H 16
-extern const metasprite_t* const axe_metasprites[2];
+extern const metasprite_t *const axe_metasprites[2];
 
 BANKREF_EXTERN(axe)
 

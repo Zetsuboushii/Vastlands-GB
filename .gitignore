@@ -4,3 +4,5 @@ build
 gbdk
 bin
 bak
+/.cache/
+/CMakeFiles/
