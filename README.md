@@ -52,7 +52,6 @@ Zur Entwicklung empfehlen sich folgende Emulatoren:
 
 **Windows**
 
-
 * [bgb](https://bgb.bircd.org/) (für Genauigkeit)
 * [Emulicious](https://emulicious.net/) (für Debugging)
 
@@ -65,3 +64,8 @@ Zum Ausprobieren und Spielen; Emulatoren für alle gängigen Plattformen:
 * [RetroArch](https://www.retroarch.com/) (Emulatoren-Frontend für Convenience)
 * [Visual Boy Advance](https://visualboyadvance.org/)
 * [mGBA](https://mgba.io/)
+
+**Original-Hardware**
+
+Zum authentischen Spielen auf echter Hardware können Flashcards verwendet werden. Die ROM sollte auf allen Geräten
+funktionieren, die den Game Boy Color unterstützen, spricht primär der Game Boy Color selbst und der Game Boy Advance
