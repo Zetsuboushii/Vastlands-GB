@@ -99,7 +99,7 @@ inline uint8_t update_row_bottom(uint8_t y) {
 // FUNCTION: set_camera
 // -----------------------------------------------------------------------------
 /**
- * @brief Adjusts background (BG) submap tiles and attributes depending on
+ * @brief Adjusts background (BKG) submap tiles and attributes depending on
  *        camera_x/camera_y changes. This effectively scrolls the background
  *        by loading new columns/rows at the edges as the camera moves.
  */
@@ -208,7 +208,7 @@ void set_camera(void) {
     old_camera_x = camera_x;
     old_camera_y = camera_y;
 
-    // Move the BG hardware scroll to the new camera position
+    // Move the BKG hardware scroll to the new camera position
     move_bkg(camera_x, camera_y);
 }
 
@@ -255,7 +255,7 @@ void init_camera(uint8_t x, uint8_t y) {
     old_camera_x = 0;
     old_map_pos_y = 255;
 
-    // Move the BG hardware scroll
+    // Move the BKG hardware scroll
     move_bkg(camera_x, camera_y);
 
     // 4) Draw the initial submap to fill the screen
