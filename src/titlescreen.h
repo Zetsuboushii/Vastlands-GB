@@ -1,7 +1,3 @@
-//
-// Created by zetsu on 06.04.25.
-//
-
 #ifndef TITLESCREEN_H
 #define TITLESCREEN_H
 
@@ -26,7 +22,6 @@
 #include <palettes.h>
 #include <stdio.h>
 #include <gb/hardware.h>
-
 
 
 extern bool is_title_shown;

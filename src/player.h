@@ -1,7 +1,3 @@
-//
-// Created by zetsu on 06.04.25.
-//
-
 #ifndef PLAYER_H
 #define PLAYER_H
 

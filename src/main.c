@@ -1,85 +1,106 @@
 #define __TARGET_gb
 
-#include <axe.h>
-#include <bkg.h>
 #include <gb/cgb.h>
 #include <gb/gb.h>
 #include <gb/hardware.h>
 #include <gb/metasprites.h>
-#include <gbc_hicolor.h>
-#include <gbdk/console.h>
 #include <gbdk/emu_debug.h>
-#include <gbdk/font.h>
 #include <gbdk/platform.h>
 #include <palettes.h>
-#include <player_attack.h>
-#include <player_down.h>
-#include <player_left.h>
-#include <player_up.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <titlescreen.h>
 
-// --- Hier kommen unsere eigenen Includes:
+// --- Our own includes ---
 #include "camera.h"
 #include "player.h"
 #include "titlescreen.h"
+#include <bkg.h>
 
-// --- Definitions ---
-#define LAST_TILE_INDEX 255u
-#define TILEMAP_WIDTH (bkg_WIDTH >> 3)
-#define TILEMAP_HEIGHT (bkg_HEIGHT >> 3)
+// -----------------------------------------------------------------------------
+// CONFIGURATION & CONSTANTS
+// -----------------------------------------------------------------------------
+#define LAST_TILE_INDEX 255u                  // The very last tile index in VRAM
+#define TILEMAP_WIDTH (bkg_WIDTH >> 3)        // Width of the background tilemap in tiles
+#define TILEMAP_HEIGHT (bkg_HEIGHT >> 3)      // Height of the background tilemap in tiles
 
-#define TILE_SIZE 16
-#define WALKING_SPEED 3
+#define TILE_SIZE 16                          // Typically, player sprite is 16x16
+#define WALKING_SPEED 3                       // Player movement speed in pixels per frame
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
-#define UPDATE_KEYS() (key_state_prev = key_state, key_state = joypad())
+#define UPDATE_KEYS() (key_state_prev = key_state, key_state = joypad())  // Helper macro
 #define KEY_NEW_PRESS(mask) ((key_state & ~key_state_prev) & (mask))
 #define KEY_IS_PRESSED(mask) (key_state & (mask))
 
-// Valid tiles for collision detection
+// -----------------------------------------------------------------------------
+// VALID TILES FOR COLLISION DETECTION
+// -----------------------------------------------------------------------------
 #define NUM_VALID_TILES 21
 const uint8_t valid_tiles[NUM_VALID_TILES] = {
     0x04, 0x05, 0x06, 0x0c, 0x0d, 0x2e, 0x33, 0x34, 0x79, 0x2d, 0xa3,
     0x38, 0x97, 0x98, 0x6e, 0xa4, 0x6f, 0x60, 0x53, 0x54, 0x61
 };
 
-// Inputs
-uint8_t key_state, key_state_prev;
-uint8_t joypad_current = 0;
+// Input handling
+uint8_t key_state, key_state_prev; // Current and previous joypad states
+uint8_t joypad_current = 0; // For reading the joypad in main loop
 
-// Sprite Two-Frame Counter
+// -----------------------------------------------------------------------------
+// SPRITE TWO-FRAME COUNTER FOR ANIMATION
+// -----------------------------------------------------------------------------
 uint8_t two_frame_counter, two_frame_real_value = 0;
-
+/**
+ * @brief Updates two_frame_counter to alternate between two animation frames
+ *        for walking animations. The variable two_frame_real_value becomes 0 or 1.
+ */
 void update_two_frame_counter() {
+    // Increase the counter by a small amount
     two_frame_counter += 3;
+
+    // Shift right to get either 0 or 1
     two_frame_real_value = two_frame_counter >> 4;
+
+    // Once it reaches 2, reset to 0
     if (two_frame_real_value >= 2) {
         two_frame_real_value = 0;
         two_frame_counter = 0;
     }
 }
 
-/* ----------------------------------------------------------------------------
-   KOLLISIONSFUNKTION
-   ----------------------------------------------------------------------------*/
+// -----------------------------------------------------------------------------
+// FUNCTION: is_valid_tile
+// -----------------------------------------------------------------------------
+/**
+ * @brief Checks if a tile at the given pixel coordinates can be walked on.
+ *        We compare the tile ID from the background tilemap against a list
+ *        of valid tiles.
+ *
+ * @param x  The X position in pixels
+ * @param y  The Y position in pixels
+ * @return true if the tile is valid for movement, otherwise false
+ */
 bool is_valid_tile(uint16_t x, uint16_t y) {
+    // Convert pixel coordinates to tile coordinates
     uint16_t tile_x = x / 8;
     uint16_t tile_y = y / 8;
+
+    // If outside the tilemap, block movement
     if (tile_x > TILEMAP_WIDTH || tile_x < 1 || tile_y > TILEMAP_HEIGHT || tile_y < 1) {
         return false;
     }
 
+    // Compute the index in bkg_map
     uint16_t index = (tile_y - 1) * TILEMAP_WIDTH + (tile_x - 1);
     uint16_t tile_dr;
-    SWITCH_ROM_MBC5(2); // bkg_map in Bank 2
+
+    // Read from the correct ROM bank (where bkg_map is located)
+    SWITCH_ROM_MBC5(2);
     tile_dr = bkg_map[index];
     SWITCH_ROM_MBC5(0);
 
     EMU_printf("Checking: Tile %x in %u,%u at %x\n", tile_dr, tile_y - 1, tile_x - 1, index);
+
+    // Compare with our valid tile array
     for (uint8_t i = 0; i < ARRAY_COUNT(valid_tiles); i++) {
         if (tile_dr == valid_tiles[i]) {
             return true;
@@ -88,15 +109,21 @@ bool is_valid_tile(uint16_t x, uint16_t y) {
     return false;
 }
 
-/* ----------------------------------------------------------------------------
-   TILE VOR DEM SPIELER AUSLESEN
-   ----------------------------------------------------------------------------*/
+// -----------------------------------------------------------------------------
+// FUNCTION: get_tile_in_front_of_player
+// -----------------------------------------------------------------------------
+/**
+ * @brief Gets the tile ID located in front of the player (one tile away
+ *        in the player's facing direction).
+ *
+ * @return the tile ID (0xFF if invalid/out of bounds)
+ */
 uint8_t get_tile_in_front_of_player(void) {
-    // Aktuelle Pixel-Koordinaten
+    // Player's current pixel position
     int16_t front_x = (int16_t)player_x;
     int16_t front_y = (int16_t)player_y;
 
-    // Je nach Richtung 8 Pixel nach vorne (mittelgroßer Abstand)
+    // Move 8 pixels forward in the direction the player is facing
     switch (player_direction) {
     case J_UP: front_y -= 8;
         break;
@@ -108,15 +135,16 @@ uint8_t get_tile_in_front_of_player(void) {
         break;
     }
 
-    // Umrechnen in Tile-Koordinaten
+    // Convert back to tile coordinates
     uint16_t tile_x = (uint16_t)(front_x >> 3);
     uint16_t tile_y = (uint16_t)(front_y >> 3);
 
+    // If outside the tilemap, return 0xFF (invalid)
     if (tile_x < 1 || tile_x > TILEMAP_WIDTH || tile_y < 1 || tile_y > TILEMAP_HEIGHT) {
-        return 0xFF; // ungültige Position
+        return 0xFF;
     }
 
-    // Index in bkg_map
+    // Calculate index in bkg_map
     uint16_t index = (tile_y - 1) * TILEMAP_WIDTH + (tile_x - 1);
 
     SWITCH_ROM_MBC5(2);
@@ -126,39 +154,42 @@ uint8_t get_tile_in_front_of_player(void) {
     return tile_id;
 }
 
-/* ============================================================================
-   DIALOGMECHANIK
-   ============================================================================
-   - Zweizeiliges Fenster, das beim Drücken von (A) um 2 Zeilen weiterscrollt.
-   - (B) schließt das Fenster sofort.
-   ============================================================================
-*/
+// -----------------------------------------------------------------------------
+// DIALOG WINDOW MECHANIC
+// -----------------------------------------------------------------------------
+/**
+ * - A two-line dialog window that scrolls two lines of text each time A is pressed.
+ * - B closes the dialog immediately.
+ * - We draw text lines by writing into the window layer's tile data.
+ */
 
-// Offsets, etc.
+// Offsets and other definitions for the dialog system
 #define DIALOG_FIRST_ROW_START 0xD0
 #define DIALOG_SECOND_ROW_START 0xE0
 #define TILE_BLACK   0xF0
 #define TILE_ARROW   0xF1
-#define CHAR_OFFSET  32   // ' ' = ASCII 32 -> index 0 in char_sprites
+#define CHAR_OFFSET  32    // ' ' = ASCII 32 => index 0 in char_sprites
 
-// Jede Zeile: 16 Zeichen + \0
-#define DIALOG_MAX_STRING_SIZE 17
+#define DIALOG_MAX_STRING_SIZE 17  // Up to 16 characters + 1 null terminator
 
-// Schwarze Tile
-const unsigned char black_tile[16] =
-{
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+// A blank black tile used for the dialog background
+const unsigned char black_tile[16] = {
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF
 };
 
-// Pfeil-Tile
-const unsigned char arrow_tile[16] =
-{
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x83, 0x83,
-    0xC7, 0xC7, 0xEF, 0xEF, 0xFF, 0xFF, 0xFF, 0xFF
+// A small arrow tile (for dialog box edges or arrow pointer)
+const unsigned char arrow_tile[16] = {
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0x83, 0x83,
+    0xC7, 0xC7, 0xEF, 0xEF,
+    0xFF, 0xFF, 0xFF, 0xFF
 };
 
-// Font: 96 Zeichen
+// A 96-character font set (ASCII 32..127).
+// Each entry is one 8x8 tile (16 bytes).
 const uint8_t char_sprites[96][16] = {
     // 0 - 31
     {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
@@ -261,7 +292,7 @@ const uint8_t char_sprites[96][16] = {
     {0xEF, 0xEF, 0xEF, 0xEF, 0xD7, 0xD7, 0xD7, 0xD7, 0xBB, 0xBB, 0xBB, 0xBB, 0x7D, 0x7D, 0x01, 0x01},
 };
 
-// Beispieltext
+// Example text: 4 lines, each up to 16 chars long
 const unsigned char pangram_a[][DIALOG_MAX_STRING_SIZE] = {
     "Es scheint      ",
     "niemand zu      ",
@@ -269,78 +300,94 @@ const unsigned char pangram_a[][DIALOG_MAX_STRING_SIZE] = {
     "sein...         "
 };
 
-// Dialog-Flags und Variablen
-UBYTE dialog_window_visible = 0;
-uint8_t current_line_index = 0;
-UBYTE key_down = 0;
+// Global flags / variables for the dialog window
+UBYTE dialog_window_visible = 0; // 1 if the dialog window is open
+uint8_t current_line_index = 0; // Which line to show next
+UBYTE key_down = 0; // Helps to avoid repeated input when the button is held
 
-// Window-Tilemap (18x5)
+// This tilemap is used to set up an 18x5 region in the window layer
+// for the 2 lines of text plus some borders.
 const unsigned char dia_wnd_tilemap[] = {
-    // Zeile 0 (oben)
+    // Row 0 (top edge)
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK,
 
-    // Zeile 1 (Textzeile)
+    // Row 1 (first text line)
     TILE_BLACK, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
     0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
     TILE_BLACK,
 
-    // Zeile 2 (Textzeile)
+    // Row 2 (second text line)
     TILE_BLACK, 0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
     0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
     TILE_BLACK,
 
-    // Zeile 3 (unten)
+    // Row 3 (bottom edge)
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK,
 
-    // Zeile 4 (Rand/Pfeil)
+    // Row 4 (border / arrow)
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK, TILE_BLACK,
     TILE_BLACK, TILE_BLACK, TILE_ARROW
 };
 
-/* ---------------------------------------------------------
-   show_dia_wnd():
-   Schreibt 2 Zeilen ab last_lin in den Window-Layer.
-   Gibt den neuen Zeilenindex zurück (last_lin + 2 oder Ende).
-   --------------------------------------------------------- */
+// -----------------------------------------------------------------------------
+// FUNCTION: show_dia_wnd
+// -----------------------------------------------------------------------------
+/**
+ * @brief Copies 2 lines from 'text_lines' into the window layer tile memory
+ *        and updates the window tilemap. This function returns the new line
+ *        index after adding 2 lines. If we hit the end, we don't overwrite
+ *        beyond it.
+ *
+ * @param text_lines  2D array of text lines
+ * @param amount_lin  total number of lines in 'text_lines'
+ * @param last_lin    the index of the line we want to start printing
+ * @return new line index (last_lin + 2) or the line count if we can't go further
+ */
 uint8_t show_dia_wnd(const unsigned char text_lines[][DIALOG_MAX_STRING_SIZE],
                      uint8_t amount_lin,
                      uint8_t last_lin) {
     dialog_window_visible = 1;
 
-    // Schwarze Tile & Pfeil in den Win-VRAM
+    // Load black tile & arrow tile into the window tile data (WIN VRAM)
     set_win_data(TILE_BLACK, 1, black_tile);
     set_win_data(TILE_ARROW, 1, arrow_tile);
 
-    // 2 Zeilen = 32 Tiles schwarz füllen
+    // Fill 32 tiles with black (2 lines x 16 columns)
     for (uint8_t i = 0; i < 32; i++) {
         set_win_data(DIALOG_FIRST_ROW_START + i, 1, black_tile);
     }
 
-    // 2 Zeilen Text kopieren
+    // Write 2 lines of text into the window
     for (uint8_t row = 0; row < 2; row++) {
-        if ((row + last_lin) >= amount_lin) break; // keine Zeile mehr
+        // If we exceed total lines, stop
+        if ((row + last_lin) >= amount_lin) break;
+
         for (uint8_t col = 0; col < 16; col++) {
+            // Grab one character
             unsigned char c = text_lines[row + last_lin][col];
+            // Subtract CHAR_OFFSET (32) since ASCII 32 maps to char_sprites[0]
             set_win_data(DIALOG_FIRST_ROW_START + (row * 16) + col,
                          1,
                          char_sprites[c - CHAR_OFFSET]);
         }
     }
 
-    // Tilemap ins Window
+    // Set the tilemap of the window layer to 18 wide x 5 tall
     set_win_tiles(0, 0, 18, 5, dia_wnd_tilemap);
-    move_win(15, 104); // verschiebe Window ein bisschen runter
+
+    // Position the window somewhere near the bottom
+    move_win(15, 104);
     SHOW_WIN;
 
-    // Index um 2 Zeilen erhöhen
+    // Return updated line index (last_lin + 2)
     uint8_t new_pos = last_lin + 2;
     if (new_pos > amount_lin) {
         new_pos = amount_lin;
@@ -348,17 +395,24 @@ uint8_t show_dia_wnd(const unsigned char text_lines[][DIALOG_MAX_STRING_SIZE],
     return new_pos;
 }
 
-/* ======================================================================== */
-
+// -----------------------------------------------------------------------------
+// MAIN
+// -----------------------------------------------------------------------------
+/**
+ * @brief Main entry point of the game. Loads the title screen, sets up the
+ *        player and camera, and runs the main loop that checks for input,
+ *        updates the player, handles the dialog window, etc.
+ */
 void main(void) {
     SHOW_BKG;
 
+    // Check if running on a CGB (Game Boy Color)
     if (_cpu == CGB_TYPE) {
-        cpu_fast();
+        cpu_fast(); // Switch to double-speed mode on GBC, as hi-color needs the extra CPU
         vsync();
         DISPLAY_OFF;
 
-        // Titelbild
+        // Title screen
         show_titlescreen();
         DISPLAY_ON;
         while (is_title_shown) {
@@ -368,39 +422,42 @@ void main(void) {
             }
         }
 
-        // Spieler vorbereiten
+        cpu_slow(); // Switch to "normal" speed to save battery
+
+        // Set up sprites
         SHOW_SPRITES;
         SPRITES_8x16;
         setup_player();
 
-        // Kamera
+        // Initialize camera
         uint16_t init_cam_x = player_x - (160 >> 1);
         uint16_t init_cam_y = player_y - (144 >> 1);
         init_camera(init_cam_x, init_cam_y);
 
-        // --- Hauptloop ---
+        // Main game loop
         while (true) {
             UPDATE_KEYS();
             joypad_current = joypad();
 
-            // 1) Dialog-Eingabe abfragen (A/B)
+            // --- 1) Dialog input check (A/B) ---
             if (key_down) {
-                waitpadup(); // Verhindert Dauerklick
+                // Wait until button is released to avoid repeated triggers
+                waitpadup();
                 key_down = 0;
             }
 
             switch (joypad_current) {
             case J_A:
                 if (dialog_window_visible) {
-                    // Fenster ist offen
+                    // If dialog is already open, either go to next lines or close
                     uint8_t total_lines = (sizeof(pangram_a) / DIALOG_MAX_STRING_SIZE);
                     if (current_line_index >= total_lines) {
-                        // Alles gezeigt -> Schließen
+                        // All lines shown => close
                         HIDE_WIN;
                         dialog_window_visible = 0;
                         current_line_index = 0;
                     } else {
-                        // Weitere 2 Zeilen zeigen
+                        // Show the next two lines
                         current_line_index = show_dia_wnd(
                             pangram_a,
                             total_lines,
@@ -408,9 +465,9 @@ void main(void) {
                         );
                     }
                 } else {
-                    // Fenster war geschlossen -> Checke Tile vor Spieler
+                    // If the window is closed, check the tile in front of the player
                     uint8_t tile_in_front = get_tile_in_front_of_player();
-                    // Falls tile_in_front 0x8F oder 0x90 => Dialog starten
+                    // If tile_in_front is 0x8F or 0x90, we open the dialog
                     if ((tile_in_front == 0x8F) || (tile_in_front == 0x90)) {
                         current_line_index = 0;
                         uint8_t total_lines = (sizeof(pangram_a) / DIALOG_MAX_STRING_SIZE);
@@ -420,14 +477,14 @@ void main(void) {
                             current_line_index
                         );
                     } else {
-                        // Andernfalls Attacke / Nichts
+                        // Otherwise do nothing or attack logic
                     }
                 }
                 key_down = 1;
                 break;
 
             case J_B:
-                // Schließe Fenster sofort
+                // Close the dialog window if open
                 if (dialog_window_visible) {
                     HIDE_WIN;
                     dialog_window_visible = 0;
@@ -437,19 +494,22 @@ void main(void) {
                 break;
             }
 
-            // 2) Nur wenn Fenster nicht offen: Spieler bewegen
+            // --- 2) Update player only if no dialog is active ---
             if (!dialog_window_visible) {
+                // Move the player, handle collisions, etc.
                 update_two_frame_counter();
                 uint8_t last_sprite = update_player();
+                // Hide any unused sprites
                 hide_sprites_range(last_sprite, 40);
             } else {
-                // Fenster offen -> Spieler einfrieren?
+                // If window is active, we can freeze the player if desired
                 hide_sprites_range(0, 40);
             }
 
-            // Sprite-Paletten aktualisieren
+            // Update sprite palettes
             set_sprite_palette(0, palettes_PALETTE_COUNT, palettes_palettes);
 
+            // Wait for the next frame
             wait_vbl_done();
         }
     }
